@@ -3,6 +3,13 @@ import tkinter.ttk as ttk
 from PIL import Image, ImageTk
 import pymongo
 
+def flatten(li):
+    if not isinstance(li, list):
+        return [li]
+    result = []
+    for ll in li:
+        result.extend(flatten(ll))
+    return result
 
 class LeftPane(tkinter.Frame):
     def __init__(self, master=None, relief=tkinter.constants.RAISED, borderwidth='2c'):
@@ -22,26 +29,29 @@ class LeftPane(tkinter.Frame):
         self.database_sel = tkinter.OptionMenu(self, default, *database_options)
         self.database_sel.pack(fill="both",side="top")
         def eurostat_tree(self)
-            id_categories = self.client.eurostat.categories.find({'_id': 1})
-            id_children = self.client.eurostat.categories.find({'children': 1})
-            def flatten(li):
-                if not isinstance(li, list):
-                    return [li]
-                result = []
-                for ll in li:
-                    result.extend(flatten(ll))
-                return result
+            self.db = self.client.eurostat
+            id_categories = self.db.categories.find({'_id': 1})
+            id_children = self.db.categories.find({'children': 1})
             id_children = flatten(id_children)
-            return [id for id in id_categories if id not in children]
+            id_root = [id for id in id_categories if id not in children]
+            return [self.db.categories.findOne({'_id': an_id_root}) for an_id_root in id_root]
 
         self.tree = ttk.Treeview(self)
-        self.node = self.tree.insert('', 'end', text='National accounts')
-        self.tree.insert(self.node, 0, 'toto', text='PIB - quarterly')
-        self.tree.insert(self.node, 1, 'gallery', text='PIB - annualy')
-        self.node2 = self.tree.insert('', 'end', text='Industrial production')
-        self.tree.insert(self.node2, 0, 'blub', text='By main industrial croupings')
+        self.nodes = []
+        children = self.eurostat_tree()
+        for child in children:
+            self.nodes.append([self.tree.insert('', 'end', text=child['name']),child])
+        def walktree(self,nodes):
+            nodes_=[]
+            children = []
+            for node in nodes:
+                child = self.db.categories.findOne({'_id': node[1]})
+                nodes_.append([self.tree.insert(
+                    node[0], 'end', text=child['name']),child])
+                children.append(self.walktree(self.node))
+            return children.extend([node_[0] for node in nodes_])
+        walktree(self,nodes)
         self.tree.pack(fill='both', side="top", expand=True)
-
 
 class Graph(tkinter.Frame):
     def __init__(self, master=None):
